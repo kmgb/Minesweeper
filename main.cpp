@@ -3,12 +3,10 @@
 #include <cassert>
 #include <list>
 #include <ctime>
+#include <vector>
 
-constexpr int width = 9,
-        height = 9;
-//num_bombs = 16;
-
-struct Tile {
+struct Tile
+{
     bool is_bomb;
     bool is_revealed;
     bool is_marked;
@@ -17,28 +15,58 @@ struct Tile {
     int x, y;
 };
 
-void print_minefield(Tile (&tiles)[height][width]);
+class Minesweeper
+{
+public:
+    Minesweeper(int width, int height);
 
-bool reveal_tile(int x, int y, Tile (&tiles)[height][width]);
+    void Run();
 
-std::list<Tile *> get_tiles_around(int x, int y, Tile (&tiles)[height][width]);
+private:
+    void printMinefield() const;
+    bool isGameComplete() const;
 
-int count_mines_around(int x, int y, Tile (&tiles)[height][width]);
+    bool revealTile(int x, int y);
+    std::list<Tile *> getTilesAround(int x, int y);
+    int countMinesAround(int x, int y);
 
-bool is_game_complete(Tile (&tiles)[height][width]);
+    int m_width, m_height;
+    std::vector<std::vector<Tile>> m_Tiles;
+};
 
-int main() {
+int main()
+{
+    constexpr int kMinefieldWidth = 9,
+                  kMinefieldHeight = 9;
+
     // Seed std::rand with the current time
     auto seed = static_cast<unsigned int>(time(nullptr));
     std::cout << "Seeding minefield with: " << seed << std::endl;
     std::srand(seed);
 
-    Tile tiles[height][width];
+    Minesweeper game(kMinefieldWidth, kMinefieldHeight);
 
+    game.Run();
+
+    return 0;
+}
+
+Minesweeper::Minesweeper(int width, int height)
+    : m_width(width)
+    , m_height(height)
+    , m_Tiles(m_height, std::vector<Tile>(m_width))
+{
+
+}
+
+void Minesweeper::Run()
+{
     // Set the mines
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i++) {
-            Tile &tile = tiles[j][i];
+    for (int j = 0; j < m_height; j++)
+    {
+        for (int i = 0; i < m_width; i++)
+        {
+            Tile &tile = m_Tiles[j][i];
 
             // rand is random enough
             tile.is_bomb = (std::rand() % 100) < 16;
@@ -50,27 +78,20 @@ int main() {
         }
     }
 
-    while (true) {
-        print_minefield(tiles);
+    while (true)
+    {
+        printMinefield();
 
         std::string cmd;
         std::cin >> cmd;
 
         if (cmd == "exit" || cmd == "e")
+        {
             break;
-
-        if (cmd == "reveal" || cmd == "r") {
-            int x, y;
-            std::cin >> x;
-            std::cin >> y;
-
-            --x;
-            --y;
-
-            if (!reveal_tile(x, y, tiles))
-                break;
         }
-        else if (cmd == "mark" || cmd == "m") {
+
+        if (cmd == "reveal" || cmd == "r")
+        {
             int x, y;
             std::cin >> x;
             std::cin >> y;
@@ -78,63 +99,88 @@ int main() {
             --x;
             --y;
 
-            Tile &tile = tiles[y][x];
+            if (!revealTile(x, y))
+            {
+                break;
+            }
+        }
+        else if (cmd == "mark" || cmd == "m")
+        {
+            int x, y;
+            std::cin >> x;
+            std::cin >> y;
+
+            --x;
+            --y;
+
+            Tile &tile = m_Tiles[y][x];
             tile.is_marked = !tile.is_marked;
         }
-        else {
+        else
+        {
             std::cout << "Unknown command: " << cmd << std::endl;
         }
 
-        if (is_game_complete(tiles)) {
+        if (isGameComplete())
+        {
             std::cout << "** Congratulations, you win! **" << std::endl;
             break;
         }
     }
-
-    return 0;
 }
 
-bool is_game_complete(Tile (&tiles)[height][width]) {
-    for (auto &j : tiles) {
-        for (auto &tile : j) {
+bool Minesweeper::isGameComplete() const
+{
+    for (auto &j : m_Tiles)
+    {
+        for (auto &tile : j)
+        {
             if (!tile.is_revealed && !tile.is_bomb)
+            {
                 return false;
+            }
         }
     }
 
     return true;
 }
 
-bool reveal_tile(int x, int y, Tile (&tiles)[height][width]) {
-    std::cout << "Trying to reveal (" << x << ", " << y << ")." << std::endl;
+bool Minesweeper::revealTile(int x, int y)
+{
     // You fool, that's out of range
-    if (x < 0 || x > width - 1 || y < 0 || y > height - 1) {
+    if (x < 0 || x > m_width - 1 || y < 0 || y > m_height - 1)
+    {
         std::cout << "Error: Invalid coordinates" << std::endl;
         return true;
     }
 
-    Tile &tile = tiles[y][x];
-    if (tile.is_bomb) {
+    Tile &tile = m_Tiles[y][x];
+    if (tile.is_bomb)
+    {
         std::cout << "Boom" << std::endl;
         return false;
     }
 
-    if (tile.is_revealed) {
+    if (tile.is_revealed)
+    {
         std::cout << "Error: Already revealed tile" << std::endl;
         return true;
     }
 
     tile.is_revealed = true;
-    tile.number = count_mines_around(x, y, tiles);
+    tile.number = countMinesAround(x, y);
 
     // Do the cool recursive reveal
-    if (tile.number == 0) {
+    if (tile.number == 0)
+    {
         std::cout << "Recursive reveal!" << std::endl;
-        auto list = get_tiles_around(x, y, tiles);
+        auto list = getTilesAround(x, y);
 
-        for (auto *t : list) {
-            if (!t->is_revealed) {
-                reveal_tile(t->x, t->y, tiles);
+        for (auto *t : list)
+        {
+            if (!t->is_revealed)
+            {
+                revealTile(t->x, t->y);
             }
         }
     }
@@ -142,37 +188,50 @@ bool reveal_tile(int x, int y, Tile (&tiles)[height][width]) {
     return true;
 }
 
-void print_minefield(Tile (&tiles)[height][width]) {
-    for (int j = -1; j < height; j++) {
-        for (int i = -1; i < width; i++) {
-            if (i == -1 && j == -1) {
+void Minesweeper::printMinefield() const
+{
+    for (int j = -1; j < m_height; j++)
+    {
+        for (int i = -1; i < m_width; i++)
+        {
+            if (i == -1 && j == -1)
+            {
                 std::cout << "  ";
             }
-            else if (i == -1) {
+            else if (i == -1)
+            {
                 std::cout << j + 1 << "| ";
             }
-            else if (j == -1) {
+            else if (j == -1)
+            {
                 std::cout << "_" << i + 1;
             }
-            else {
-                Tile &tile = tiles[j][i];
+            else
+            {
+                Tile const &tile = m_Tiles[j][i];
 
-                if (tile.is_revealed) {
-                    if (tile.number == 0) {
+                if (tile.is_revealed)
+                {
+                    if (tile.number == 0)
+                    {
                         std::cout << ". ";
                     }
-                    else {
+                    else
+                    {
                         // We haven't initialized the number then
                         assert (tile.number != 9);
 
                         std::cout << tile.number << " ";
                     }
                 }
-                else {
-                    if (tile.is_marked) {
+                else
+                {
+                    if (tile.is_marked)
+                    {
                         std::cout << "x ";
                     }
-                    else {
+                    else
+                    {
                         std::cout << "? ";
                     }
                 }
@@ -183,47 +242,44 @@ void print_minefield(Tile (&tiles)[height][width]) {
     }
 }
 
-std::list<Tile *> get_tiles_around(int x, int y, Tile (&tiles)[height][width]) {
-    assert(x >= 0 && x < width && y >= 0 && y < height);
+std::list<Tile *> Minesweeper::getTilesAround(int x, int y)
+{
+    assert(x >= 0 && x < m_width && y >= 0 && y < m_height);
 
     int topleft_x = std::max(0, x - 1),
-            topleft_y = std::max(0, y - 1),
-            topright_x = std::min(x + 1, width - 1),
-            topright_y = std::min(y + 1, height - 1);
+        topleft_y = std::max(0, y - 1),
+        topright_x = std::min(x + 1, m_width - 1),
+        topright_y = std::min(y + 1, m_height - 1);
 
     std::list<Tile *> list;
-    for (int j = topleft_y; j <= topright_y; j++) {
-        for (int i = topleft_x; i <= topright_x; i++) {
+    for (int j = topleft_y; j <= topright_y; j++)
+    {
+        for (int i = topleft_x; i <= topright_x; i++)
+        {
             if (j == y && i == x)
+            {
                 continue; // Skip self
+            }
 
-            list.push_back(&tiles[j][i]);
+            list.push_back(&m_Tiles[j][i]);
         }
     }
 
     return list;
 }
 
-int count_mines_around(int x, int y, Tile (&tiles)[height][width]) {
+int Minesweeper::countMinesAround(int x, int y)
+{
     int bomb_count{};
-    auto list = get_tiles_around(x, y, tiles);
+    auto list = getTilesAround(x, y);
 
-    for (auto *tile : list) {
+    for (auto *tile : list)
+    {
         if (tile->is_bomb)
+        {
             ++bomb_count;
+        }
     }
 
     return bomb_count;
-}
-
-int count_unrevealed_around(int x, int y, Tile (&tiles)[height][width]) {
-    int unrevealed_count{};
-    auto list = get_tiles_around(x, y, tiles);
-
-    for (auto *tile : list) {
-        if (!tile->is_revealed)
-            ++unrevealed_count;
-    }
-
-    return unrevealed_count;
 }
